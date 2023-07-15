@@ -1,10 +1,21 @@
 package main
 
 import (
+	"io"
+	"log"
+	"os"
+
 	"github.com/aws/aws-cdk-go/awscdk/v2"
-	// "github.com/aws/aws-cdk-go/awscdk/v2/awssqs"
+	"github.com/joho/godotenv"
+
+	"github.com/aws/aws-cdk-go/awscdk/v2/awsevents"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awseventstargets"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awssns"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awssnssubscriptions"
 	"github.com/aws/constructs-go/constructs/v10"
 	"github.com/aws/jsii-runtime-go"
+
+	"github.com/aws/aws-cdk-go/awscdklambdagoalpha/v2"
 )
 
 type SqsTestStackProps struct {
@@ -12,18 +23,47 @@ type SqsTestStackProps struct {
 }
 
 func NewSqsTestStack(scope constructs.Construct, id string, props *SqsTestStackProps) awscdk.Stack {
+	godotenv.Load(".env")
+
 	var sprops awscdk.StackProps
 	if props != nil {
 		sprops = props.StackProps
 	}
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
-	// The code that defines your stack goes here
+	credsFile, err := os.OpenFile("credentials.json", os.O_RDONLY, os.ModeAppend)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// example resource
-	// queue := awssqs.NewQueue(stack, jsii.String("SqsTestQueue"), &awssqs.QueueProps{
-	// 	VisibilityTimeout: awscdk.Duration_Seconds(jsii.Number(300)),
-	// })
+	b, err := io.ReadAll(credsFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println(string(b))
+
+	env := map[string]*string{
+		"REFRESH_TOKEN": jsii.String(os.Getenv("REFRESH_TOKEN")),
+		"CREDENTIALS":   jsii.String(string(b)),
+	}
+
+	lambdaApp := awscdklambdagoalpha.NewGoFunction(stack, jsii.String("go-function"), &awscdklambdagoalpha.GoFunctionProps{
+		Entry:       jsii.String("lambda-app/cmd"),
+		Environment: &env,
+	})
+
+	topic := awssns.NewTopic(stack, jsii.String("test-topic"), &awssns.TopicProps{
+		DisplayName: jsii.String("Test Topic"),
+	})
+
+	subscription := awssnssubscriptions.NewLambdaSubscription(lambdaApp, &awssnssubscriptions.LambdaSubscriptionProps{})
+	topic.AddSubscription(subscription)
+
+	rule := awsevents.NewRule(stack, jsii.String("Rule"), &awsevents.RuleProps{
+		Schedule: awsevents.Schedule_Rate(awscdk.Duration_Millis(jsii.Number(60 * 1000))), // 1 minute
+	})
+	rule.AddTarget(awseventstargets.NewSnsTopic(topic, &awseventstargets.SnsTopicProps{}))
 
 	return stack
 }

@@ -1,5 +1,5 @@
 {
-  "app": "go mod download && go run sqs_test.go",
+  "app": "go mod download && go run sqs_stack.go",
   "watch": {
     "include": [
       "**"
