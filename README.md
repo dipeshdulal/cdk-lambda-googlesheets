@@ -1,4 +1,4 @@
-# CDK to build lambda function that adds to google spread sheet
+# Lambda function that adds to google spread sheet, built with CDK
 
 - The `credentials.json` has credentials to call google sheets API.
 - The `cdk.json` file tells the CDK toolkit how to execute your app.
